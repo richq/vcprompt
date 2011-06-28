@@ -263,6 +263,20 @@ svn_get_info(vccontext_t *context)
             ok = svn_read_xml(fp, line, sizeof(line), line_num, result);
         }
     }
+    if (context->options->show_modified) {
+        debug("svn show modified");
+        FILE *version = popen("svnversion -n", "r");
+        if (version != NULL) {
+            char buffer[256];
+            char *gets_result = fgets(buffer, sizeof(buffer) - 1, version);
+            if (gets_result != NULL) {
+                size_t len = strlen(buffer);
+                debug("svn version result %s", buffer);
+                result->modified = buffer[len - 1] == 'M';
+            }
+            pclose(version);
+        }
+    }
 
  err:
     if (fp) {
