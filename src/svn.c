@@ -30,6 +30,57 @@ svn_probe(vccontext_t *context)
     return isdir(".svn");
 }
 
+static void
+copy_path_section(char *dest, const char *src)
+{
+    while (*src != 0 && *src != '/')
+        *dest++ = *src++;
+}
+
+static char *
+simplify_branch(const char *branch)
+{
+    char *p = NULL;
+    /* strip leading / from branch name */
+    while (*branch == '/')
+        branch++;
+    /* convert common repo styles:
+     *   branches/bar => bar
+     *   branches/bar/baz/buzz => bar
+     *   foo/branches/bar => foo/bar
+     *   foo/branches/bar/baz/buzz => foo/bar
+     * unchanged:
+     *   branches
+     *   foo
+     */
+    p = malloc(strlen(branch));
+    char *tmp = p;
+    const char branches[] = "branches/";
+    const char trunk[] = "trunk/";
+
+    if (strncmp(branch, branches, sizeof(branches) - 1) == 0) {
+        branch += sizeof(branches) - 1;
+        copy_path_section(tmp, branch);
+    } else {
+        if (strncmp(branch, trunk, sizeof(trunk) - 1) == 0) {
+            copy_path_section(tmp, branch);
+        } else {
+            do {
+                *tmp++ = *branch++;
+            } while (*branch != 0 && *branch != '/');
+            if (*branch != 0) {
+                *tmp++ = *branch++;
+                if (strncmp(branch, branches, sizeof(branches) - 1) == 0)
+                    branch += sizeof(branches) - 1;
+                copy_path_section(tmp, branch);
+            } else {
+                *tmp = 0;
+            }
+        }
+    }
+    return p;
+}
+
 static char *
 get_branch_name(char *repos_path)
 {
@@ -47,22 +98,7 @@ get_branch_name(char *repos_path)
         debug("found svn trunk");
         return strdup(name);
     }
-    if (slash == NULL) {
-        debug("no branch in svn repos_path '%s'", repos_path);
-        return NULL;
-    }
-
-    // backup and see if the previous component is "branches", in which
-    // case 'name' points to the branch name
-    *slash = 0;
-    slash = strrchr(repos_path, '/');
-    char *prev = slash ? slash + 1 : repos_path;
-    if (strncmp(prev, "branches", 8) == 0) {
-        debug("found svn branch name: %s", name);
-        return strdup(name);
-    }
-    debug("could not find branch name in svn repos_path '%s'", repos_path);
-    return NULL;
+    return simplify_branch(repos_path);
 }
 
 
