@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 #if HAVE_SQLITE3
 # include <sqlite3.h>
@@ -224,6 +226,33 @@ svn_read_xml(FILE *fp, char line[], int size, int line_num, result_t *result)
     return 1;
 }
 
+static int
+svn_should_ignore_modified(void)
+{
+    char initial_wd[BUFSIZ];
+    char *result = getcwd(initial_wd, sizeof(initial_wd));
+    int ignore_modified = 0;
+    struct stat buf;
+    if (result == NULL)
+        return 0;
+    while (1) {
+        if (should_ignore_modified(".svn")) {
+            ignore_modified = 1;
+            break;
+        }
+        if (stat("../.svn", &buf) == 0 && S_ISDIR(buf.st_mode)) {
+            if (chdir("..") != 0)
+                break;
+        } else {
+            ignore_modified = should_ignore_modified(".svn");
+            break;
+        }
+    }
+    if (chdir(initial_wd) == -1)
+        debug("error returning to %s", initial_wd);
+    return ignore_modified;
+}
+
 static result_t*
 svn_get_info(vccontext_t *context)
 {
@@ -264,17 +293,22 @@ svn_get_info(vccontext_t *context)
         }
     }
     if (context->options->show_modified) {
-        debug("svn show modified");
-        FILE *version = popen("svnversion -n", "r");
-        if (version != NULL) {
-            char buffer[256];
-            char *gets_result = fgets(buffer, sizeof(buffer) - 1, version);
-            if (gets_result != NULL) {
-                size_t len = strlen(buffer);
-                debug("svn version result %s", buffer);
-                result->modified = buffer[len - 1] == 'M';
+        int ignore_modified = svn_should_ignore_modified();
+        if (!ignore_modified && is_cwd_remote())
+            ignore_modified = 1;
+        if (!ignore_modified) {
+            debug("svn show modified");
+            FILE *version = popen("svnversion -n", "r");
+            if (version != NULL) {
+                char buffer[256];
+                char *gets_result = fgets(buffer, sizeof(buffer) - 1, version);
+                if (gets_result != NULL) {
+                    size_t len = strlen(buffer);
+                    debug("svn version result %s", buffer);
+                    result->modified = buffer[len - 1] == 'M';
+                }
+                pclose(version);
             }
-            pclose(version);
         }
     }
 

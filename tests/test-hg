@@ -143,6 +143,20 @@ test_status_goofy_filenames()
     posttest
 }
 
+test_modified()
+{
+    pretest
+    echo a > a
+    hg add a
+    hg commit -madd_a
+    assert_vcprompt "show modified no modifications" "" "%m"
+    echo b >> a
+    assert_vcprompt "show modified modifications" "+" "%m"
+    touch .hg/vcprompt-no-modified
+    assert_vcprompt "ignore modifications with ignore file" "" "%m"
+    posttest
+}
+
 check_hg
 find_vcprompt
 find_hgrepo
@@ -152,5 +166,6 @@ test_basics
 test_status
 test_status_add_remove
 test_status_goofy_filenames
+test_modified
 
 report

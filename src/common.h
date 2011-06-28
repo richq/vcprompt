@@ -143,4 +143,9 @@ dump_hex(char *dest, const char *data, int datasize);
 void
 get_till_eol(char *dest, const char *src, int nchars);
 
+int
+should_ignore_modified(const char *dirname);
+
+int
+is_cwd_remote(void);
 #endif

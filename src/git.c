@@ -60,7 +60,8 @@ git_get_info(vccontext_t *context)
             }
         }
     }
-    if (context->options->show_modified) {
+    if (context->options->show_modified &&
+        !should_ignore_modified(".git") && !is_cwd_remote()) {
         char *argv[] = {
             "git", "diff", "--no-ext-diff", "--quiet", "--exit-code", NULL};
         capture_t *capture = capture_child("git", argv);

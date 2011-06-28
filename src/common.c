@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
+#include <mntent.h>
 
 #include "common.h"
 
@@ -135,6 +136,67 @@ int
 isfile(char *name)
 {
     return _testmode(name, S_IFREG, "regular file");
+}
+
+static
+int is_remote(const char *fsname)
+{
+    /* if the fsname contains a : then it is remote,
+     * e.g. servername:/data/export */
+    return strchr(fsname, ':') != NULL;
+}
+
+int
+should_ignore_modified(const char *dirname)
+{
+    static const char *ignore_file = "/vcprompt-no-modified";
+    char *filename = malloc(strlen(dirname) + strlen(ignore_file) + 1);
+    strcpy(filename, dirname);
+    strcat(filename, ignore_file);
+    int ignore_modified = 0;
+    struct stat buf;
+    if (stat(filename, &buf) == 0) {
+        ignore_modified = 1;
+    }
+    free(filename);
+    return ignore_modified;
+}
+
+
+/* returns 1 if cwd is remote, 0 if it is local */
+int
+is_cwd_remote(void)
+{
+    FILE *fp;
+    struct mntent *mnt;
+    char cwd[BUFSIZ];
+    size_t cwdlen, longest_match;
+    char *mntpt;
+    char *filename = _PATH_MOUNTED;
+    char *result = getcwd(cwd, sizeof(cwd));
+    if (result == NULL)
+        return 0;
+    fp = setmntent(filename, "r");
+    cwdlen = strlen(cwd);
+    longest_match = 0;
+    mntpt = NULL;
+    while ((mnt = getmntent(fp))) {
+        size_t dirlen = strlen(mnt->mnt_dir);
+        if (dirlen < cwdlen && strncmp(cwd, mnt->mnt_dir, dirlen) == 0
+            && dirlen > longest_match) {
+            /* found a possible mount point, only keep the longest one */
+            longest_match = dirlen;
+            free(mntpt);
+            mntpt = strdup(mnt->mnt_fsname);
+        }
+    }
+    if (mntpt != NULL) {
+        debug("using mount point: '%s'", mntpt);
+        int rem = is_remote(mntpt);
+        free(mntpt);
+        return rem;
+    }
+    return 0;
 }
 
 int

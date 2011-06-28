@@ -249,6 +249,8 @@ read_modified_unknown(vccontext_t *context, result_t *result)
     // if you ever figure it out.
     if (!context->options->show_modified && !context->options->show_unknown)
         return;
+    if (should_ignore_modified(".hg") || is_cwd_remote())
+        return;
 
     char *argv[] = {"hg", "--quiet", "status",
                     "--modified", "--added", "--removed",
