@@ -183,7 +183,7 @@ print_result(vccontext_t *context, options_t *options, result_t *result)
                     break;
                 case 'm':
                     if (result->modified)
-                        putc('+', stdout);
+                        putc('*', stdout);
                     break;
                 case '%':               /* escaped % */
                     putc('%', stdout);
